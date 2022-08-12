@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.channels.Channel
+import timber.log.Timber
 import java.util.LinkedList
 import java.util.Queue
 
@@ -30,6 +31,8 @@ class PlayersPool(
       Channel<Player>(capacity = 1).apply {
         trySend(unlockedExoPlayers.removeLast().also(lockedExoPlayers::add))
       }
+    }.also {
+      Timber.tag(VIDEO_LIST).d("pool size = %s", lockedExoPlayers.size + unlockedExoPlayers.size)
     }
 
   @Synchronized
@@ -39,6 +42,11 @@ class PlayersPool(
 
   @Synchronized
   fun release(player: Player) {
+    lockedExoPlayers.remove(player)
+  }
+
+  @Synchronized
+  fun stop(player: Player) {
     if(!reusePlayer(player)) {
       lockedExoPlayers.remove(player)
       unlockedExoPlayers.add(player)

@@ -1,12 +1,16 @@
 package com.uptech.videolist
 
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.Util
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import com.uptech.videolist.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
@@ -18,7 +22,13 @@ class MainActivity : AppCompatActivity() {
     factoryProducer = {
       object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-          MainViewModel(PlayersPool(applicationContext, 2)) as T
+          MainViewModel(
+            PlayersPool(
+              applicationContext,
+              MediaCodecUtil.getDecoderInfos(MimeTypes.VIDEO_MP4, false, false)
+                .minOf { decoder -> decoder.maxSupportedInstances } / 2
+            )
+          ) as T
       }
     }
   )

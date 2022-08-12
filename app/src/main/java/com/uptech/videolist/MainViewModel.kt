@@ -26,7 +26,7 @@ class MainViewModel(val playersPool: PlayersPool) : ViewModel() {
   )
   val playbackPositions: Flow<List<Long>> = _playbackPositions
 
-  private val _playerActions: MutableSharedFlow<PlayersAction> = MutableSharedFlow()
+  private val _playerActions: MutableSharedFlow<PlayersAction> = MutableSharedFlow(extraBufferCapacity = 1)
   val playersActions: Flow<PlayersAction> = _playerActions
 
   fun updatePlaybackPosition(index: Int, playbackPosition: Long) {
