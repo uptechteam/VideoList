@@ -12,57 +12,57 @@ class PlayersPool(
   private val context: Context,
   private val maxPoolSize: Int
 ) {
-  private val unlockedExoPlayers: MutableList<Player> = mutableListOf(ExoPlayer.Builder(context).build())
-  private val lockedExoPlayers: MutableList<Player> = mutableListOf()
+  private val unlockedPlayers: MutableList<Player> = mutableListOf(ExoPlayer.Builder(context).build())
+  private val lockedPlayers: MutableList<Player> = mutableListOf()
 
-  private val awaitingQueue: Queue<Channel<Player>> = LinkedList()
+  private val waitingQueue: Queue<Channel<Player>> = LinkedList()
 
   @Synchronized
   fun acquire(): Channel<Player> =
-    if(unlockedExoPlayers.isEmpty()) {
-      if(lockedExoPlayers.size >= maxPoolSize) {
-        Channel<Player>().also { channel -> awaitingQueue.offer(channel) }
+    if(unlockedPlayers.isEmpty()) {
+      if(lockedPlayers.size >= maxPoolSize) {
+        Channel<Player>(capacity = 1).also { channel -> waitingQueue.offer(channel) }
       } else {
         Channel<Player>(capacity = 1).apply {
-          trySend(ExoPlayer.Builder(context).build().also(lockedExoPlayers::add))
+          trySend(ExoPlayer.Builder(context).build().also(lockedPlayers::add))
         }
       }
     } else {
       Channel<Player>(capacity = 1).apply {
-        trySend(unlockedExoPlayers.removeLast().also(lockedExoPlayers::add))
+        trySend(unlockedPlayers.removeLast().also(lockedPlayers::add))
       }
     }.also {
-      Timber.tag(VIDEO_LIST).d("pool size = %s", lockedExoPlayers.size + unlockedExoPlayers.size)
+      Timber.tag(VIDEO_LIST).d("pool size = %s", lockedPlayers.size + unlockedPlayers.size)
     }
 
   @Synchronized
   fun removeFromAwaitingQueue(channel: Channel<Player>) {
-    awaitingQueue.remove(channel)
+    waitingQueue.remove(channel)
   }
 
   @Synchronized
   fun release(player: Player) {
-    lockedExoPlayers.remove(player)
+    lockedPlayers.remove(player)
   }
 
   @Synchronized
   fun stop(player: Player) {
     if(!reusePlayer(player)) {
-      lockedExoPlayers.remove(player)
-      unlockedExoPlayers.add(player)
+      lockedPlayers.remove(player)
+      unlockedPlayers.add(player)
     }
   }
 
   private fun reusePlayer(player: Player): Boolean =
-    awaitingQueue.poll()?.run {
+    waitingQueue.poll()?.run {
       trySend(player)
       true
     } ?: false
 
   @Synchronized
   fun releaseAll() {
-    awaitingQueue.clear()
-    unlockedExoPlayers.addAll(lockedExoPlayers)
-    lockedExoPlayers.clear()
+    waitingQueue.clear()
+    unlockedPlayers.addAll(lockedPlayers)
+    lockedPlayers.clear()
   }
 }

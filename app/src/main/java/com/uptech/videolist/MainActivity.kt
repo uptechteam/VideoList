@@ -22,6 +22,8 @@ class MainActivity : AppCompatActivity() {
           MainViewModel(
             PlayersPool(
               applicationContext,
+              //use predefined number of codecs if there are not enough hardware codecs available on
+              //device. P.S. as tests show app doesn't use more than 4 codecs instances
               minOf(4, availableCodecsNum())
             )
           ) as T
@@ -55,29 +57,25 @@ class MainActivity : AppCompatActivity() {
 
   override fun onStart() {
     super.onStart()
-    if (Util.SDK_INT > 23) {
+    if (Util.SDK_INT > 23)
       viewModel.restartPlayers()
-    }
   }
 
   override fun onResume() {
     super.onResume()
-    if (Util.SDK_INT <= 23) {
+    if (Util.SDK_INT <= 23)
       viewModel.restartPlayers()
-    }
   }
 
   override fun onPause() {
-    if (Util.SDK_INT <= 23) {
+    if (Util.SDK_INT <= 23)
       viewModel.releasePlayers()
-    }
     super.onPause()
   }
 
   override fun onStop() {
-    if (Util.SDK_INT > 23) {
+    if (Util.SDK_INT > 23)
       viewModel.releasePlayers()
-    }
     super.onStop()
   }
 }
