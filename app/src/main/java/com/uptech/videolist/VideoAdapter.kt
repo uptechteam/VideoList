@@ -54,8 +54,8 @@ class VideoAdapter(
   }
 
   override fun onViewDetachedFromWindow(holder: VideoViewHolder) {
-    super.onViewDetachedFromWindow(holder)
     holder.detach()
+    super.onViewDetachedFromWindow(holder)
   }
 
   inner class VideoViewHolder(
