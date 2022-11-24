@@ -2,8 +2,7 @@ package com.uptech.videolist
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.recyclerview.widget.RecyclerView
 import com.uptech.videolist.MainViewModel.PlayersAction
 import com.uptech.videolist.MainViewModel.PlayersAction.RELEASE
@@ -20,7 +19,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 class VideoAdapter(
   private val playersPool: PlayersPool,
@@ -29,10 +27,10 @@ class VideoAdapter(
   private val dispatcher: CoroutineDispatcher,
   private val updatePlaybackPosition: (Int, Long) -> Unit
 ) : RecyclerView.Adapter<VideoViewHolder>() {
-  private var videoUrls: List<String> = listOf()
+  private var videoUrls: List<MediaSource> = listOf()
   var playbackPositions: List<Long> = listOf()
 
-  fun updateVideoUrls(videoUrls: List<String>) {
+  fun updateVideoUrls(videoUrls: List<MediaSource>) {
     this.videoUrls = videoUrls
     notifyDataSetChanged()
   }
@@ -62,22 +60,18 @@ class VideoAdapter(
     private val binding: VideoItemViewBinding
   ) : RecyclerView.ViewHolder(binding.root) {
     private lateinit var videoScope: CoroutineScope
-    private lateinit var playerChannel: Channel<Player>
+    private lateinit var playerChannel: Channel<ReusablePlayer>
     private var playJob: Job? = null
     private var restartJob: Job? = null
 
-    fun bind(url: String, playbackPosition: Long) {
+    fun bind(mediaSource: MediaSource, playbackPosition: Long) {
       videoScope = CoroutineScope(Job() + dispatcher)
-      bindPlayer(url, playbackPosition)
+      bindPlayer(mediaSource, playbackPosition)
       if(restartJob === null) {
         restartJob = playersActions
           .onEach { action ->
             when(action) {
               RELEASE -> with(binding.playerView) {
-                Timber.tag(VIDEO_LIST).d(
-                  "Release player: url = %s",
-                  url.substringAfterLast('/')
-                )
                 updatePlaybackPosition(absoluteAdapterPosition, player?.currentPosition ?: 0)
                 player?.run {
                   release()
@@ -106,27 +100,17 @@ class VideoAdapter(
       }
     }
 
-    private fun bindPlayer(url: String, playbackPosition: Long) {
+    private fun bindPlayer(mediaSource: MediaSource, playbackPosition: Long) {
       playJob?.cancel()
       playJob = videoScope.launch {
-        Timber.tag(VIDEO_LIST).d(
-          "Awaiting for player url = %s, playbackPosition = %d",
-          url.substringAfterLast('/'),
-          playbackPosition
-        )
         playersPool.acquire()
           .also { playerChannel = it }
           .receive()
           .run {
-            Timber.tag(VIDEO_LIST).d(
-              "Playing url = %s, playbackPosition = %d",
-              url.substringAfterLast('/'),
-              playbackPosition
-            )
-            binding.playerView.player = this
-            setMediaItem(MediaItem.fromUri(url))
-            playWhenReady = true
-            seekTo(0, playbackPosition)
+            binding.playerView.player = player
+            setMediaSource(mediaSource)
+            player.playWhenReady = true
+            player.seekTo(0, playbackPosition)
             prepare()
           }
       }
@@ -141,11 +125,6 @@ class VideoAdapter(
           updatePlaybackPosition(absoluteAdapterPosition, currentPosition)
           playersPool.stop(this)
         }
-        Timber.tag(VIDEO_LIST).d(
-          "Player detached: url = %s, playback position = %d",
-          videoUrls[absoluteAdapterPosition].substringAfterLast('/'),
-          player?.currentPosition
-        )
         videoScope.cancel()
         player = null
       }

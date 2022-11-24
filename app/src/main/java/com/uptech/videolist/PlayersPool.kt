@@ -2,6 +2,7 @@ package com.uptech.videolist
 
 import android.content.Context
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.channels.Channel
 import timber.log.Timber
@@ -12,23 +13,39 @@ class PlayersPool(
   private val context: Context,
   private val maxPoolSize: Int
 ) {
-  private val unlockedPlayers: MutableList<Player> = mutableListOf(ExoPlayer.Builder(context).build())
-  private val lockedPlayers: MutableList<Player> = mutableListOf()
+  private val unlockedPlayers: MutableList<ReusablePlayer> = mutableListOf()
+  private val lockedPlayers: MutableList<ReusablePlayer> = mutableListOf()
+  private var playerIndex: Int = 0
 
-  private val waitingQueue: Queue<Channel<Player>> = LinkedList()
+  private val waitingQueue: Queue<Channel<ReusablePlayer>> = LinkedList()
 
   @Synchronized
-  fun acquire(): Channel<Player> =
+  fun acquire(): Channel<ReusablePlayer> =
     if(unlockedPlayers.isEmpty()) {
       if(lockedPlayers.size >= maxPoolSize) {
-        Channel<Player>(capacity = 1).also { channel -> waitingQueue.offer(channel) }
+        Channel<ReusablePlayer>(capacity = 1).also { channel -> waitingQueue.offer(channel) }
       } else {
-        Channel<Player>(capacity = 1).apply {
-          trySend(ExoPlayer.Builder(context).build().also(lockedPlayers::add))
+        Channel<ReusablePlayer>(capacity = 1).apply {
+          trySend(
+            ExoPlayer.Builder(context)
+              .setLoadControl(
+                DefaultLoadControl.Builder()
+                  .setBufferDurationsMs(
+                    10_000,
+                    10_000,
+                    100,
+                    2000
+                  ).build()
+              )
+              .build()
+              .let { exoPlayer -> ReusablePlayer(exoPlayer) }
+              .apply { playerId = "player${playerIndex++}" }
+              .also { player -> lockedPlayers.add(player) }
+          )
         }
       }
     } else {
-      Channel<Player>(capacity = 1).apply {
+      Channel<ReusablePlayer>(capacity = 1).apply {
         trySend(unlockedPlayers.removeLast().also(lockedPlayers::add))
       }
     }.also {
@@ -36,24 +53,25 @@ class PlayersPool(
     }
 
   @Synchronized
-  fun removeFromAwaitingQueue(channel: Channel<Player>) {
+  fun removeFromAwaitingQueue(channel: Channel<ReusablePlayer>) {
     waitingQueue.remove(channel)
   }
 
   @Synchronized
   fun release(player: Player) {
-    lockedPlayers.remove(player)
+    lockedPlayers.removeAll { reusablePlayer -> reusablePlayer.player == player }
   }
 
   @Synchronized
   fun stop(player: Player) {
-    if(!reusePlayer(player)) {
-      lockedPlayers.remove(player)
-      unlockedPlayers.add(player)
+    val reusablePlayer = lockedPlayers.first { reusablePlayer -> reusablePlayer.player == player }
+    if (!reusePlayer(reusablePlayer)) {
+      lockedPlayers.remove(reusablePlayer)
+      unlockedPlayers.add(reusablePlayer)
     }
   }
 
-  private fun reusePlayer(player: Player): Boolean =
+  private fun reusePlayer(player: ReusablePlayer): Boolean =
     waitingQueue.poll()?.run {
       trySend(player)
       true
