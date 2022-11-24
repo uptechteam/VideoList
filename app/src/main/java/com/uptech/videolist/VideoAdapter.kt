@@ -103,7 +103,7 @@ class VideoAdapter(
     private fun bindPlayer(mediaSource: MediaSource, playbackPosition: Long) {
       playJob?.cancel()
       playJob = videoScope.launch {
-        playersPool.acquire()
+        playersPool.acquire(mediaSource.mediaItem.playbackProperties?.uri.toString())
           .also { playerChannel = it }
           .receive()
           .run {

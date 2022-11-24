@@ -31,11 +31,11 @@ class MainActivity : AppCompatActivity() {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
           MainViewModel(
-            PlayersPool(
+            NoOpPlayersPool(
               applicationContext,
               //use predefined number of codecs if there are not enough hardware codecs available on
               //device. P.S. as tests show app doesn't use more than 4 codecs instances
-              4//minOf(4, availableCodecsNum())
+              //4minOf(4, availableCodecsNum())
             )
           ) as T
       }
