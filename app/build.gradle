@@ -47,6 +47,8 @@ dependencies {
   implementation "androidx.media3:media3-exoplayer:$mediaVersion"
   implementation "androidx.media3:media3-ui:$mediaVersion"
   implementation "androidx.media3:media3-exoplayer-dash:$mediaVersion"
+  implementation "androidx.media3:media3-datasource:$mediaVersion"
+  implementation "androidx.media3:media3-exoplayer-hls:$mediaVersion"
 
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.2"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.2"
